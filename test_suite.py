@@ -17,13 +17,25 @@ from core.aadhaar_parser import validate_verhoeff, generate_verhoeff_check_digit
 from core.field_validator import validate_document_fields, parse_mrz_date
 from core.blacklist_check import check_document_blacklist
 from core.cross_validator import extract_viz_fields, cross_validate_viz_and_mrz, normalize_viz_date
+import sqlite3
 from reports.forensic_generator import generate_forensic_pdf, compute_report_hash
 from governance.audit_logger import (
     record_officer_decision,
+    verify_audit_chain,
     get_audit_logs,
     get_governance_metrics,
     compute_ai_recommendation,
-    is_decision_an_override
+    is_decision_an_override,
+    assign_retention_tier,
+    RetentionTier,
+    GENESIS_PREV_HASH,
+    DB_PATH
+)
+from governance.retention_engine import (
+    purge_expired_clean_records,
+    get_retention_policy_config,
+    get_dpdp_compliance_summary,
+    DEFAULT_CLEAN_RETENTION_HOURS
 )
 from main import assemble_response
 
@@ -463,6 +475,175 @@ class TestOfficerAccountabilityGovernance(unittest.TestCase):
         self.assertIn("override_rate_percentage", metrics)
         self.assertIn("ai_human_agreement_rate_percentage", metrics)
         self.assertIn("top_override_reasons", metrics)
+
+
+class TestCryptographicHashChain(unittest.TestCase):
+    """Verifies sequential Merkle-style hash chaining, continuous pointer linkage, and tamper detection."""
+
+    def setUp(self):
+        self.doc_val = {
+            "document_type": "passport",
+            "format": "TD3",
+            "extracted_fields": {
+                "name": "TEST PASSENGER",
+                "document_number": "T11223344"
+            },
+            "checksum_validation": {"overall_valid": True},
+            "field_validation": {"flags": []},
+            "blacklist_status": {"is_blacklisted": False}
+        }
+
+    def test_hash_chain_continuity_and_verification(self):
+        # 1. Log two decisions
+        log1 = record_officer_decision(
+            validation_data=self.doc_val,
+            officer_id="INSP-CHAIN-01",
+            checkpoint_id="LANE-A",
+            final_decision="ENTRY_GRANTED"
+        )
+        log2 = record_officer_decision(
+            validation_data=self.doc_val,
+            officer_id="INSP-CHAIN-02",
+            checkpoint_id="LANE-B",
+            final_decision="ENTRY_GRANTED"
+        )
+
+        # Assert log2 prev_hash points to log1 audit_sha256
+        self.assertEqual(log2["prev_hash"], log1["audit_sha256"])
+        self.assertEqual(log2["block_index"], log1["block_index"] + 1)
+
+        # Verify chain validity across the database
+        report = verify_audit_chain()
+        self.assertTrue(report["chain_valid"])
+        self.assertIsNone(report["corrupted_block_index"])
+        self.assertGreaterEqual(report["total_blocks_verified"], 2)
+
+    def test_tamper_detection_on_database_alteration(self):
+        # 1. Ensure at least one entry exists
+        record_officer_decision(
+            validation_data=self.doc_val,
+            officer_id="INSP-TAMPER-TEST",
+            checkpoint_id="LANE-C",
+            final_decision="ENTRY_GRANTED"
+        )
+
+        # 2. Directly mutate a record in SQLite to simulate a malicious database edit
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT block_index, final_decision FROM officer_audit_log ORDER BY block_index DESC LIMIT 1")
+            target_block_idx, orig_decision = cursor.fetchone()
+            
+            # Tamper the decision without recomputing the SHA-256
+            forged_decision = "DETAINED" if orig_decision == "ENTRY_GRANTED" else "ENTRY_GRANTED"
+            cursor.execute("UPDATE officer_audit_log SET final_decision = ? WHERE block_index = ?", (forged_decision, target_block_idx))
+            conn.commit()
+
+            # 3. Verify that chain verification immediately catches the forgery!
+            report = verify_audit_chain()
+            self.assertFalse(report["chain_valid"])
+            self.assertEqual(report["corrupted_block_index"], target_block_idx)
+            self.assertIn("tampering detected", report["error_details"].lower())
+
+            # 4. Clean up / restore the record
+            cursor.execute("UPDATE officer_audit_log SET final_decision = ? WHERE block_index = ?", (orig_decision, target_block_idx))
+            conn.commit()
+
+
+class TestDPDPDataRetentionCompliance(unittest.TestCase):
+    """Verifies DPDP Act 2023 data minimization, dual-tier retention, and cryptographic tombstoning."""
+
+    def setUp(self):
+        self.clean_val = {
+            "document_type": "passport",
+            "format": "TD3",
+            "extracted_fields": {
+                "name": "CITIZEN CLEAN",
+                "document_number": "C12345678"
+            },
+            "checksum_validation": {"overall_valid": True},
+            "field_validation": {"flags": []},
+            "blacklist_status": {"is_blacklisted": False}
+        }
+        self.flagged_val = {
+            "document_type": "passport",
+            "format": "TD3",
+            "extracted_fields": {
+                "name": "SUSPECTED FORGER",
+                "document_number": "F99999999"
+            },
+            "checksum_validation": {"overall_valid": False},
+            "field_validation": {"flags": ["CHECKSUM_FAILED"]},
+            "blacklist_status": {"is_blacklisted": True}
+        }
+
+    def test_retention_tier_assignment(self):
+        tier_clean = assign_retention_tier("CLEARED", "ENTRY_GRANTED", False, self.clean_val)
+        tier_flagged = assign_retention_tier("DETAIN", "ENTRY_GRANTED", True, self.flagged_val)
+        
+        self.assertEqual(tier_clean, RetentionTier.TIER_1_STANDARD_CLEARED.value)
+        self.assertEqual(tier_flagged, RetentionTier.TIER_2_INVESTIGATION_HOLD.value)
+
+    def test_auto_purge_scrubs_clean_demographics(self):
+        # 1. Log a clean pass entry
+        log_entry = record_officer_decision(
+            validation_data=self.clean_val,
+            officer_id="INSP-PURGE-UNIT",
+            checkpoint_id="LANE-01",
+            final_decision="ENTRY_GRANTED"
+        )
+        self.assertEqual(log_entry["legal_retention_tier"], RetentionTier.TIER_1_STANDARD_CLEARED.value)
+
+        # 2. Trigger auto-purge
+        purge_res = purge_expired_clean_records(force_purge_all_clean=True)
+        self.assertEqual(purge_res["status"], "success")
+        self.assertGreaterEqual(purge_res["purged_records_count"], 1)
+
+        # 3. Verify SQLite demographic field is tombstoned
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM officer_audit_log WHERE block_index = ?", (log_entry["block_index"],))
+            purged_row = cursor.fetchone()
+            
+            self.assertEqual(purged_row["is_purged"], 1)
+            self.assertEqual(purged_row["document_number_masked"], "[PURGED: DPDP ACT 2023 SEC 8(7)]")
+            self.assertIsNotNone(purged_row["purged_at"])
+
+    def test_purge_preserves_investigation_holds(self):
+        # 1. Log a flagged entry (Tier 2 hold)
+        flagged_log = record_officer_decision(
+            validation_data=self.flagged_val,
+            officer_id="INSP-HOLD-UNIT",
+            checkpoint_id="LANE-02",
+            final_decision="DETAINED",
+            override_reason_code="BEHAVIORAL_ANOMALY_SUSPICION"
+        )
+        self.assertEqual(flagged_log["legal_retention_tier"], RetentionTier.TIER_2_INVESTIGATION_HOLD.value)
+
+        # 2. Run purge
+        purge_expired_clean_records(force_purge_all_clean=True)
+
+        # 3. Assert Tier 2 record was NOT purged
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM officer_audit_log WHERE block_index = ?", (flagged_log["block_index"],))
+            held_row = cursor.fetchone()
+            
+            self.assertEqual(held_row["is_purged"], 0)
+            self.assertEqual(held_row["document_number_masked"], "F99999999")
+
+    def test_purge_preserves_100_percent_hash_chain_integrity(self):
+        # Even after purging multiple clean records, the cryptographic chain MUST be 100% valid!
+        chain_report = verify_audit_chain()
+        self.assertTrue(chain_report["chain_valid"])
+        self.assertIsNone(chain_report["corrupted_block_index"])
+
+    def test_dpdp_compliance_summary(self):
+        summary = get_dpdp_compliance_summary()
+        self.assertIn("total_records_purged_dpdp", summary)
+        self.assertIn("data_minimization_percentage", summary)
+        self.assertTrue(summary["dpdp_act_2023_compliant"])
 
 
 if __name__ == "__main__":

@@ -57,6 +57,17 @@ graph TD
 - Mandates standardized regulatory reason codes (`OPTICAL_GLARE_FALSE_POSITIVE`, `DIPLOMATIC_CONSULAR_IMMUNITY`, `BEHAVIORAL_ANOMALY_SUSPICION`, etc.).
 - Enforces supervisor co-signatures for critical `DETAIN` overrides and persists records into an append-only SQLite store (`data/audit_log.db`).
 
+### 6. Tamper-Evident Cryptographic Hash Chain (`governance/audit_logger.py`)
+- Solves post-incident evidentiary integrity challenges without heavy Web3/blockchain infrastructure.
+- Every audit entry seals its own contents + the exact `SHA-256` digest of the previous block ($\text{PrevHash}_{N-1}$) starting from a 64-zero Genesis Block.
+- **1-Click Chain Verification (`GET /audit-logs/verify-chain`)**: Traverses the SQLite log from Block #0 to $N$, re-computes all hashes in real time, and proves the database has not been retroactively altered.
+
+### 7. Data Retention Auto-Purge & DPDP Act 2023 Compliance (`governance/retention_engine.py`)
+- Implements statutory data minimization under India's **Digital Personal Data Protection (DPDP) Act 2023 Section 8(7)**.
+- **Dual-Tier Retention Strategy**: Clean, unflagged scans (`TIER_1_STANDARD_CLEARED`) auto-purge demographic PII after a configurable retention window (24h - 30 days).
+- **Evidentiary Holds**: Flagged, blacklisted, or overridden cases (`TIER_2_INVESTIGATION_HOLD`) are preserved under Section 17(1)(c) exemptions for inquiry commissions.
+- **Cryptographic Tombstoning**: Replaces PII with statutory tokens (`[PURGED: DPDP ACT 2023 SEC 8(7)]`) while preserving block indices, previous-hash linkages, and SHA-256 seals, keeping the hash chain $100\%$ valid without storing personal data.
+
 ---
 
 ## 📁 Repository Structure
@@ -85,7 +96,8 @@ AI-document-screening/
 │
 ├── governance/
 │   ├── __init__.py
-│   └── audit_logger.py     # SQLite append-only audit trail & governance metrics engine
+│   ├── audit_logger.py     # SQLite append-only audit trail & cryptographic hash-chain
+│   └── retention_engine.py # DPDP Act 2023 data minimization & cryptographic tombstoning
 │
 ├── api/
 │   ├── __init__.py
@@ -94,8 +106,8 @@ AI-document-screening/
 ├── data/
 │   └── .gitkeep            # Data directory for local audit logs
 │
-├── main.py                 # FastAPI microservice & 7-stage standalone CLI test suite
-├── test_suite.py           # 26 automated unit & integration tests (100% pass rate)
+├── main.py                 # FastAPI microservice & 9-stage standalone CLI test suite
+├── test_suite.py           # 33 automated unit & integration tests (100% pass rate)
 ├── requirements.txt        # Python dependencies
 ├── .gitignore              # Ignored files (pycache, runtime DBs, test PDFs)
 └── README.md
@@ -110,12 +122,12 @@ AI-document-screening/
 pip install -r requirements.txt
 ```
 
-### 2. Run the Full Automated Test Suite (26 Tests)
+### 2. Run the Full Automated Test Suite (33 Tests)
 ```bash
 python test_suite.py
 ```
 
-### 3. Run the Standalone 7-Stage Demonstration Suite
+### 3. Run the Standalone 9-Stage Demonstration Suite
 ```bash
 python main.py
 ```
@@ -127,6 +139,8 @@ Executes complete automated validation pipelines:
 5. VIZ vs. MRZ Photoshop Tampering Detection.
 6. Investigation-Ready Single-Page Forensic PDF Report Generation with SHA-256 Seal.
 7. Human Officer Override & Accountability Logging with Supervisor Co-Sign.
+8. Cryptographic Hash-Chain Integrity Verification across the entire database.
+9. DPDP Act 2023 Data Retention Auto-Purge & Cryptographic Tombstoning.
 
 ### 4. Launch the FastAPI Microservice
 ```bash
@@ -149,6 +163,10 @@ Interactive Swagger API documentation: `http://localhost:8000/docs`.
 | `GET` | `/override-reasons` | Returns standardized regulatory reason codes for UI dropdowns |
 | `GET` | `/audit-logs` | Retrieves paginated immutable audit logs for inquiry commissions |
 | `GET` | `/audit-logs/stats` | Governance metrics (Override Rate %, Agreement %, Reason Breakdown) |
+| `GET` | `/audit-logs/verify-chain` | Cryptographically validates full hash-chain from Genesis #0 to latest block |
+| `GET` | `/compliance/retention-policy`| Returns DPDP Act 2023 statutory retention windows and policy |
+| `POST` | `/compliance/purge-expired`| Automatically purges expired clean PII with cryptographic tombstones |
+| `GET` | `/compliance/dpdp-status` | Real-time DPDP data minimization metrics & statutory hold counters |
 | `GET` | `/blacklist` | Inspects active simulated border watchlists |
 | `GET` | `/health` | Service health status |
 
@@ -159,3 +177,6 @@ Interactive Swagger API documentation: `http://localhost:8000/docs`.
 - **ICAO Doc 9303 (Parts 3, 4, 7)**: Machine Readable Travel Documents specification.
 - **Aadhaar Act 2016 Section 29**: Prohibition on raw UID storage and display.
 - **UIDAI Circular Comp/01/2018 & RBI Master Directions**: Mandatory masking of the first 8 digits.
+- **Digital Personal Data Protection (DPDP) Act 2023 Section 8(7)**: Mandatory data minimization and storage limitation for clean travelers.
+- **Digital Personal Data Protection (DPDP) Act 2023 Section 17(1)(c)**: Exemption for prevention and detection of offences (evidentiary holds).
+

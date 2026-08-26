@@ -151,6 +151,7 @@ class OfficerDecisionRequest(BaseModel):
 
 
 class AuditLogEntry(BaseModel):
+    block_index: int = Field(..., description="Sequential block index in cryptographic hash chain (0 = Genesis)")
     log_id: str
     incident_id: str
     timestamp: str
@@ -164,7 +165,11 @@ class AuditLogEntry(BaseModel):
     is_override: bool
     override_reason_code: Optional[str] = None
     override_justification: Optional[str] = None
-    audit_sha256: str
+    legal_retention_tier: str = Field(..., description="DPDP retention tier: TIER_1_STANDARD_CLEARED or TIER_2_INVESTIGATION_HOLD")
+    is_purged: bool = Field(False, description="Whether personal demographic data has been auto-purged under DPDP Act 2023")
+    purged_at: Optional[str] = Field(None, description="Timestamp when data minimization tombstone was applied")
+    prev_hash: str = Field(..., description="SHA-256 hash of the preceding block in the chain")
+    audit_sha256: str = Field(..., description="Cryptographic SHA-256 seal for this block")
 
 
 class OfficerDecisionResponse(BaseModel):
@@ -180,5 +185,45 @@ class GovernanceMetricsResponse(BaseModel):
     override_rate_percentage: float
     ai_human_agreement_rate_percentage: float
     top_override_reasons: Dict[str, int]
+
+
+class ChainVerificationResponse(BaseModel):
+    chain_valid: bool = Field(..., description="Whether cryptographic hash chain is unbroken and 100% authentic")
+    total_blocks_verified: int = Field(..., description="Total blocks inspected and verified from genesis")
+    corrupted_block_index: Optional[int] = Field(None, description="Index of corrupted or altered block, if any")
+    error_details: Optional[str] = Field(None, description="Diagnostic error details if chain failed")
+    latest_block_hash: Optional[str] = Field(None, description="SHA-256 seal of the latest block")
+    verified_at: str = Field(..., description="UTC verification timestamp")
+
+
+class RetentionPolicyResponse(BaseModel):
+    regulatory_framework: str
+    clean_record_retention_hours: int
+    clean_record_legal_basis: str
+    flagged_record_retention_days: int
+    flagged_record_legal_basis: str
+    pruning_mechanism: str
+    auto_purge_enabled: bool
+
+
+class PurgeExecutionResponse(BaseModel):
+    status: str
+    purged_records_count: int
+    active_investigation_holds: int
+    retention_window_hours_applied: int
+    executed_at: str
+    statutory_authority: str
+    chain_integrity_preserved: bool
+
+
+class DPDPComplianceStatusResponse(BaseModel):
+    total_audit_records_lifetime: int
+    total_records_purged_dpdp: int
+    active_transient_clean_records: int
+    active_evidentiary_investigation_holds: int
+    data_minimization_percentage: float
+    dpdp_act_2023_compliant: bool
+
+
 
 

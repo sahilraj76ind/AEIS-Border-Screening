@@ -500,24 +500,31 @@ def generate_forensic_pdf(
 
     # 7. Evidentiary Integrity & Cryptographic Seal
     audit_sec_num = "7" if (doc_type == "AADHAAR" or (officer_decision and officer_decision.get("is_override"))) else "5"
-    story.append(Paragraph(f"{audit_sec_num}. Evidentiary Integrity & Chain-of-Custody Sign-Off", section_hdr_style))
+    story.append(Paragraph(f"{audit_sec_num}. Evidentiary Integrity & Cryptographic Chain Sign-Off", section_hdr_style))
+    
+    blk_idx = officer_decision.get("block_index") if officer_decision else "GENESIS / UNINDEXED"
+    prev_h = (officer_decision.get("prev_hash") or "0"*64)[:32] + "..." if officer_decision else "N/A"
+
     crypto_data = [
         [
-            Paragraph("<b>SHA-256 Digital Fingerprint:</b> <code>" + sha256_digest + "</code>", cell_style)
+            Paragraph(f"<b>SHA-256 Block Digest:</b> <code>{sha256_digest}</code>", cell_style)
         ],
         [
-            Paragraph("<i>This cryptographic digest binds document metadata, check digits, and human officer override logs into a tamper-evident audit record.</i>", subtitle_style)
+            Paragraph(f"<b>Audit Block Index:</b> #{blk_idx} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Chained Prev Hash:</b> <code>{prev_h}</code>", cell_style)
+        ],
+        [
+            Paragraph("<i>Tamper-evident cryptographic hash-chain binding document metadata, check digits, and human officer decisions into an immutable digital audit log.</i>", subtitle_style)
         ]
     ]
     crypto_table = Table(crypto_data, colWidths=[552])
     crypto_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F7FAFC")),
         ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E0")),
-        ('TOPPADDING', (0, 0), (-1, -1), 2),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
     ]))
     story.append(crypto_table)
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 3))
 
     # Sign-off Block
     final_decision_text = (officer_decision.get("final_decision") if officer_decision else "PENDING_SIGN_OFF")

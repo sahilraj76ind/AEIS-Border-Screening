@@ -39,9 +39,15 @@ from vision.ocr_engine import extract_document_from_image
 from reports.forensic_generator import generate_forensic_pdf
 from governance.audit_logger import (
     record_officer_decision,
+    verify_audit_chain,
     get_audit_logs,
     get_governance_metrics,
     get_all_override_reasons
+)
+from governance.retention_engine import (
+    purge_expired_clean_records,
+    get_retention_policy_config,
+    get_dpdp_compliance_summary
 )
 from api.schemas import (
     DocumentValidationResponse,
@@ -51,6 +57,10 @@ from api.schemas import (
     OfficerDecisionResponse,
     AuditLogEntry,
     GovernanceMetricsResponse,
+    ChainVerificationResponse,
+    RetentionPolicyResponse,
+    PurgeExecutionResponse,
+    DPDPComplianceStatusResponse,
     ExtractedFields,
     ChecksumValidation,
     FieldValidation,
@@ -420,6 +430,43 @@ def get_audit_stats_endpoint():
     return get_governance_metrics()
 
 
+@app.get("/audit-logs/verify-chain", response_model=ChainVerificationResponse, tags=["Governance & Accountability"])
+def verify_audit_chain_endpoint():
+    """
+    Cryptographically verifies the full audit log hash chain from Genesis Block #0 to the latest block.
+    Detects any retroactive modifications, row deletions, or out-of-order insertions.
+    """
+    res = verify_audit_chain()
+    return ChainVerificationResponse(**res)
+
+
+@app.get("/compliance/retention-policy", response_model=RetentionPolicyResponse, tags=["DPDP Act 2023 Compliance"])
+def get_retention_policy_endpoint():
+    """
+    Returns the statutory data retention framework under India's Digital Personal Data
+    Protection (DPDP) Act 2023 (Section 8(7) storage limitations & Section 17(1)(c) exemptions).
+    """
+    return get_retention_policy_config()
+
+
+@app.post("/compliance/purge-expired", response_model=PurgeExecutionResponse, tags=["DPDP Act 2023 Compliance"])
+def purge_expired_records_endpoint(retention_hours: int = 24, force_all: bool = False):
+    """
+    Executes automated data minimization: scrubs all personal identity data from clean records
+    older than retention_hours using cryptographic tombstones while preserving hash-chain integrity.
+    """
+    res = purge_expired_clean_records(retention_hours=retention_hours, force_purge_all_clean=force_all)
+    return PurgeExecutionResponse(**res)
+
+
+@app.get("/compliance/dpdp-status", response_model=DPDPComplianceStatusResponse, tags=["DPDP Act 2023 Compliance"])
+def get_dpdp_status_endpoint():
+    """
+    Returns live metrics on data minimization percentage, active clean records, and statutory holds.
+    """
+    return get_dpdp_compliance_summary()
+
+
 # ======================================================================
 # Standalone CLI & Demonstration Runner
 # ======================================================================
@@ -546,17 +593,50 @@ if __name__ == "__main__":
         override_justification="Diplomatic courier carrying sealed diplomatic pouch with MFA clearance.",
         supervisor_id="SUPV-VERMA-900"
     )
-    print("Recorded Audit Log Entry:")
+    print("Recorded Audit Log Entry (Chained Block):")
     print(json.dumps(override_log, indent=2))
     assert override_log["is_override"] is True
     assert override_log["override_reason_code"] == "DIPLOMATIC_CONSULAR_IMMUNITY"
     assert len(override_log["audit_sha256"]) == 64
+    assert len(override_log["prev_hash"]) == 64
+    print(">> Result: Officer override tracked with cryptographic prev_hash and block index!")
+
+    # -------------------------------------------------------------
+    # Test Case 8: Cryptographic Hash-Chain Integrity Verification
+    # -------------------------------------------------------------
+    print("\n[TEST 8] Verifying Cryptographic Hash-Chain Integrity across entire DB...")
+    chain_status = verify_audit_chain()
+    print("Audit Log Chain Verification Report:")
+    print(json.dumps(chain_status, indent=2))
+    assert chain_status["chain_valid"] is True
+    assert chain_status["total_blocks_verified"] >= 1
+    print(">> Result: Cryptographic hash chain verified 100% authentic with unbroken block linkage!")
+
+    # -------------------------------------------------------------
+    # Test Case 9: DPDP Act 2023 Data Retention Auto-Purge
+    # -------------------------------------------------------------
+    print("\n[TEST 9] Executing DPDP Act 2023 Auto-Purge & Cryptographic Tombstoning...")
+    # Log a clean pass record to verify auto-purge
+    clean_pass = assemble_response(parsed_3, confidence=0.98) # Valid visa
+    record_officer_decision(
+        validation_data=clean_pass.model_dump(),
+        officer_id="INSP-PURGE-TEST",
+        checkpoint_id="IGI-T3-GATE-01",
+        final_decision="ENTRY_GRANTED"
+    )
     
-    stats = get_governance_metrics()
-    print("\nGovernance Compliance Metrics:")
-    print(json.dumps(stats, indent=2))
-    print(">> Result: Officer override tracked with mandatory reason code, supervisor co-sign, and SHA-256 seal!")
+    purge_report = purge_expired_clean_records(force_purge_all_clean=True)
+    print("Purge Execution Report:")
+    print(json.dumps(purge_report, indent=2))
+    assert purge_report["status"] == "success"
+    assert purge_report["purged_records_count"] >= 1
+    
+    # Assert that hash chain is STILL 100% valid after demographic data minimization!
+    post_purge_chain = verify_audit_chain()
+    assert post_purge_chain["chain_valid"] is True
+    print(f">> Post-Purge Hash Chain Verification: {post_purge_chain['chain_valid']} (Verified {post_purge_chain['total_blocks_verified']} blocks)")
+    print(">> Result: DPDP Act 2023 Data Minimization auto-purged clean PII while preserving 100% cryptographic chain integrity!")
 
     print("\n" + "=" * 80)
-    print("    ALL 7 STANDALONE VERIFICATION SUITES PASSED SUCCESSFULLY (100%)")
+    print("    ALL 9 STANDALONE VERIFICATION SUITES PASSED SUCCESSFULLY (100%)")
     print("=" * 80)

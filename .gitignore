@@ -1,0 +1,28 @@
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Runtime SQLite Database & Dynamic Files
+data/*.db
+data/*.db-journal
+data/*.sqlite3
+
+# Generated Test PDFs & Artifacts
+*.pdf
+*.log
+
+# Editor & OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

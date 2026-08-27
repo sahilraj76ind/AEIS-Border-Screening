@@ -1,4 +1,4 @@
-# AI Border Checkpoint Document Screening & Verification Engine
+## AI Border Checkpoint Document Screening & Verification Engine
 ## Module 1: Automated OCR, Multi-Zone Forensic Cross-Check, ICAO 9303 / Verhoeff Checksum Verification, UIDAI Privacy Redaction & Officer Governance
 
 Developed for **Smart India Hackathon (SIH)**.

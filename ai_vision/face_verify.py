@@ -13,10 +13,14 @@ def verify_face(doc_image_path: str, selfie_image_path: str) -> dict:
         return {
             "face_match": bool(result["verified"]),
             "distance": round(result["distance"], 4),
-            "similarity_score": round(1 - result["distance"], 4)
+            "similarity_score": round(1 - result["distance"], 4),
+            "status": "OK"
         }
     except Exception as e:
-        print("=== FULL FACE VERIFY ERROR ===")
         traceback.print_exc()
-        print("================================")
-        return {"face_match": False, "error": str(e)}
+        return {
+            "face_match": False,
+            "similarity_score": 0.0,
+            "status": "FACE_NOT_DETECTED",
+            "error": str(e)
+        }

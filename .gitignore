@@ -20,6 +20,7 @@ data/*.sqlite3
 # Generated Test PDFs & Artifacts
 *.pdf
 *.log
+temp/
 
 # Editor & OS Files
 .vscode/

@@ -11,6 +11,7 @@ Generates programmatic image fixtures for the 4 core verification scenarios:
 import os
 import sys
 import io
+from typing import Dict, Any, List, Optional
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 

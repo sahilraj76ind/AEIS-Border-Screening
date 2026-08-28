@@ -11,3 +11,5 @@ pytesseract>=0.3.10
 passporteye>=2.1.0
 pyzbar>=0.1.9
 reportlab>=4.0.0
+streamlit>=1.30.0
+plotly>=5.18.0

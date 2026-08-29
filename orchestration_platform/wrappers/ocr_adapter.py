@@ -120,6 +120,18 @@ def process_document_ocr(
             "masked_document_number": parsed_dict.get("extracted_fields", {}).get("document_number")
         }
 
+    # Compute AI Baseline Recommendation
+    is_blacklisted = blacklist_res.get("is_blacklisted", False) if isinstance(blacklist_res, dict) else False
+    checksums_valid = parsed_dict.get("checksum_validation", {}).get("overall_valid", True)
+    cross_consistent = viz_cross_check.get("is_consistent", True) if viz_cross_check else True
+
+    if is_blacklisted or not checksums_valid:
+        ai_recommendation = "DETAIN"
+    elif len(flags) > 0 or not cross_consistent:
+        ai_recommendation = "SECONDARY_INSPECTION"
+    else:
+        ai_recommendation = "CLEARED"
+
     return {
         "status": "SUCCESS",
         "document_type": doc_type,
@@ -131,5 +143,7 @@ def process_document_ocr(
         "viz_mrz_cross_check": viz_cross_check,
         "privacy_compliance": privacy_compliance,
         "redacted_image_base64": redacted_b64,
-        "ocr_confidence": round(float(confidence), 4)
+        "ocr_confidence": round(float(confidence), 4),
+        "ai_recommendation": ai_recommendation,
+        "allow_manual_override": True
     }

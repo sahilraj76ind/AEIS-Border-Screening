@@ -35,6 +35,28 @@ from wrappers.ai_vision_adapter import run_ai_generated_detection, run_facial_bi
 from engine.cross_doc_graph import build_and_evaluate_cross_document_graph
 from engine.composite_risk_engine import evaluate_composite_risk
 from core.blacklist_check import get_all_blacklisted_records
+from governance.audit_logger import (
+    record_officer_decision,
+    verify_audit_chain,
+    get_audit_logs,
+    get_governance_metrics,
+    get_all_override_reasons
+)
+from governance.retention_engine import (
+    purge_expired_clean_records,
+    get_retention_policy_config,
+    get_dpdp_compliance_summary
+)
+from api.schemas import (
+    OfficerDecisionRequest,
+    OfficerDecisionResponse,
+    AuditLogEntry,
+    GovernanceMetricsResponse,
+    ChainVerificationResponse,
+    RetentionPolicyResponse,
+    PurgeExecutionResponse,
+    DPDPComplianceStatusResponse
+)
 
 app = FastAPI(
     title="AI Document Fraud Screening & Verification Platform",
@@ -242,6 +264,89 @@ async def screen_batch_documents(
             status_code=500,
             detail=f"Batch Document Screening Failed: {str(e)}"
         )
+
+
+# =============================================================================
+# Governance, Human-in-the-Loop & Officer Decision Endpoints
+# =============================================================================
+
+@app.get("/api/v1/override-reasons", tags=["Governance & Accountability"])
+def get_override_reasons_endpoint():
+    """Returns standardized regulatory taxonomy of override reason codes."""
+    return get_all_override_reasons()
+
+
+@app.post("/api/v1/submit-officer-decision", response_model=OfficerDecisionResponse, tags=["Governance & Accountability"])
+def submit_officer_decision_endpoint(payload: OfficerDecisionRequest):
+    """
+    Records a human officer's final decision. Validates mandatory reason code on overrides,
+    enforces dual-key supervisor authorization for high-risk DETAIN overrides,
+    and appends an immutable cryptographic SHA-256 block to the hash-chained audit database.
+    """
+    try:
+        val_dict = payload.validation_data.model_dump()
+        audit_res = record_officer_decision(
+            validation_data=val_dict,
+            officer_id=payload.officer_id,
+            checkpoint_id=payload.checkpoint_id,
+            final_decision=payload.final_decision,
+            override_reason_code=payload.override_reason_code,
+            override_justification=payload.override_justification,
+            supervisor_id=payload.supervisor_id,
+            incident_id=payload.incident_id
+        )
+        return OfficerDecisionResponse(
+            status="logged",
+            is_override=audit_res["is_override"],
+            audit_log=AuditLogEntry(**audit_res)
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to record officer decision: {str(e)}")
+
+
+@app.get("/api/v1/audit-logs", response_model=List[AuditLogEntry], tags=["Governance & Accountability"])
+def list_audit_logs_endpoint(
+    limit: int = 50,
+    offset: int = 0,
+    is_override: Optional[bool] = None,
+    officer_id: Optional[str] = None
+):
+    """Retrieves paginated audit trail records for supervisory oversight."""
+    return get_audit_logs(limit=limit, offset=offset, is_override=is_override, officer_id=officer_id)
+
+
+@app.get("/api/v1/audit-logs/stats", response_model=GovernanceMetricsResponse, tags=["Governance & Accountability"])
+def get_audit_stats_endpoint():
+    """Returns governance analytics: Total Inspections, Total Overrides, Override Rate %, AI-Human Agreement %."""
+    return get_governance_metrics()
+
+
+@app.get("/api/v1/audit-logs/verify-chain", response_model=ChainVerificationResponse, tags=["Governance & Accountability"])
+def verify_audit_chain_endpoint():
+    """Cryptographically verifies the full audit log hash chain from Genesis Block #0."""
+    res = verify_audit_chain()
+    return ChainVerificationResponse(**res)
+
+
+@app.get("/api/v1/compliance/retention-policy", response_model=RetentionPolicyResponse, tags=["DPDP Act 2023 Compliance"])
+def get_retention_policy_endpoint():
+    """Returns statutory data retention policy under DPDP Act 2023."""
+    return get_retention_policy_config()
+
+
+@app.post("/api/v1/compliance/purge-expired", response_model=PurgeExecutionResponse, tags=["DPDP Act 2023 Compliance"])
+def purge_expired_records_endpoint(retention_hours: int = 24, force_all: bool = False):
+    """Executes automated DPDP data minimization auto-purge on clean records."""
+    res = purge_expired_clean_records(retention_hours=retention_hours, force_purge_all_clean=force_all)
+    return PurgeExecutionResponse(**res)
+
+
+@app.get("/api/v1/compliance/dpdp-status", response_model=DPDPComplianceStatusResponse, tags=["DPDP Act 2023 Compliance"])
+def get_dpdp_status_endpoint():
+    """Returns live DPDP Act compliance summary and minimization percentage."""
+    return get_dpdp_compliance_summary()
 
 
 if __name__ == "__main__":

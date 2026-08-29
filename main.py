@@ -42,7 +42,8 @@ from governance.audit_logger import (
     verify_audit_chain,
     get_audit_logs,
     get_governance_metrics,
-    get_all_override_reasons
+    get_all_override_reasons,
+    compute_ai_recommendation
 )
 from governance.retention_engine import (
     purge_expired_clean_records,
@@ -152,6 +153,15 @@ def assemble_response(
             masked_document_number=extracted.document_number
         )
     
+    # 8. Compute AI Baseline Recommendation for Human-in-the-Loop Governance
+    temp_dict = {
+        "blacklist_status": blacklist.model_dump(),
+        "checksum_validation": checksums.model_dump(),
+        "field_validation": {"flags": flags},
+        "viz_mrz_cross_check": viz_cross_check_model.model_dump() if viz_cross_check_model else None
+    }
+    ai_rec = compute_ai_recommendation(temp_dict)
+    
     return DocumentValidationResponse(
         document_type=doc_type,
         format=parsed_dict.get("format"),
@@ -162,7 +172,9 @@ def assemble_response(
         viz_mrz_cross_check=viz_cross_check_model,
         privacy_compliance=privacy_compliance_model,
         redacted_image_base64=redacted_image_b64,
-        ocr_confidence=confidence
+        ocr_confidence=confidence,
+        ai_recommendation=ai_rec,
+        allow_manual_override=True
     )
 
 

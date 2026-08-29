@@ -9,3 +9,4 @@ deepface
 tf-keras
 opencv-contrib-python
 numpy
+mediapipe>=1.0.0

@@ -39,6 +39,16 @@ except ImportError:
     except ImportError:
         verify_face = None
 
+try:
+    from ai_vision.liveness_detector import RealTimeLivenessEngine, verify_live_webcam, calculate_ear
+except ImportError:
+    try:
+        from liveness_detector import RealTimeLivenessEngine, verify_live_webcam, calculate_ear
+    except ImportError:
+        RealTimeLivenessEngine = None
+        verify_live_webcam = None
+        calculate_ear = None
+
 
 def _write_temp_image(image_input: Union[str, bytes, Image.Image]) -> Tuple[str, bool]:
     """
@@ -153,3 +163,87 @@ def run_facial_biometric_verification(
                     os.remove(p)
                 except Exception:
                     pass
+
+
+def run_realtime_webcam_liveness(
+    camera_id: int = 0,
+    target_blinks: int = 2,
+    timeout_seconds: float = 25.0
+) -> Dict[str, Any]:
+    """
+    Launches an interactive OpenCV webcam window with live HUD to verify liveness
+    via real-time Eye Aspect Ratio (EAR) blink tracking.
+    """
+    if verify_live_webcam is None:
+        return {
+            "liveness_confirmed": False,
+            "status": "ENGINE_UNAVAILABLE",
+            "error": "Liveness detector module not loaded.",
+            "captured_image": None
+        }
+
+    try:
+        confirmed, frame_rgb, report = verify_live_webcam(
+            camera_id=camera_id,
+            target_blinks=target_blinks,
+            timeout_seconds=timeout_seconds,
+            output_path=None
+        )
+        return {
+            "liveness_confirmed": confirmed,
+            "status": "SUCCESS" if confirmed else "TIMEOUT_OR_CANCELLED",
+            "report": report,
+            "captured_image_rgb": frame_rgb
+        }
+    except Exception as e:
+        return {
+            "liveness_confirmed": False,
+            "status": "ERROR",
+            "error": str(e),
+            "captured_image_rgb": None
+        }
+
+
+def evaluate_frame_liveness(
+    image_input: Union[str, bytes, Image.Image, np.ndarray]
+) -> Dict[str, Any]:
+    """
+    Evaluates a single frame or image for face presence, Eye Aspect Ratio, and openness.
+    """
+    if RealTimeLivenessEngine is None:
+        return {
+            "liveness_confirmed": False,
+            "face_detected": False,
+            "status": "ENGINE_UNAVAILABLE"
+        }
+
+    try:
+        engine = RealTimeLivenessEngine()
+        if isinstance(image_input, (bytes, str)):
+            if isinstance(image_input, bytes):
+                img = Image.open(io.BytesIO(image_input)).convert("RGB")
+            else:
+                img = Image.open(image_input).convert("RGB")
+            frame_np = np.array(img)
+        elif isinstance(image_input, Image.Image):
+            frame_np = np.array(image_input.convert("RGB"))
+        else:
+            frame_np = image_input
+
+        annotated_bgr, status = engine.process_frame(frame_np, draw_hud=False)
+        return {
+            "status": "SUCCESS",
+            "face_detected": status.get("face_detected", False),
+            "current_ear": status.get("current_ear", 0.0),
+            "is_eye_closed": status.get("is_eye_closed", False),
+            "left_ear": status.get("left_ear", 0.0),
+            "right_ear": status.get("right_ear", 0.0)
+        }
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "error": str(e),
+            "face_detected": False,
+            "current_ear": 0.0
+        }
+

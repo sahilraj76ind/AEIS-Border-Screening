@@ -110,6 +110,14 @@ class DocumentValidationResponse(BaseModel):
         description="Base64 encoded URI of the sanitized image with physical PII black-box redaction applied"
     )
     ocr_confidence: float = Field(..., ge=0.0, le=1.0, description="Estimated OCR / extraction confidence")
+    ai_recommendation: str = Field(
+        "CLEARED",
+        description="AI baseline recommendation: 'CLEARED', 'SECONDARY_INSPECTION', or 'DETAIN'"
+    )
+    allow_manual_override: bool = Field(
+        True,
+        description="Whether human officer manual override is permitted against the AI recommendation"
+    )
 
 
 class MRZTextValidationRequest(BaseModel):

@@ -26,7 +26,8 @@ if str(ROOT_DIR) not in sys.path:
 if str(PLATFORM_DIR) not in sys.path:
     sys.path.insert(0, str(PLATFORM_DIR))
 
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, status
+from concurrent.futures import ThreadPoolExecutor
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from wrappers.ocr_adapter import process_document_ocr
@@ -35,6 +36,7 @@ from wrappers.ai_vision_adapter import run_ai_generated_detection, run_facial_bi
 from engine.cross_doc_graph import build_and_evaluate_cross_document_graph
 from engine.composite_risk_engine import evaluate_composite_risk
 from core.blacklist_check import get_all_blacklisted_records
+from reports.forensic_generator import generate_forensic_pdf
 from governance.audit_logger import (
     record_officer_decision,
     verify_audit_chain,
@@ -106,42 +108,44 @@ async def screen_single_document(
     Screens a single uploaded document image (Passport, Visa, or Aadhaar Card)
     and optional traveler selfie image.
     Returns complete multi-layered verification analysis and 0-100 composite risk score.
+    Rapid single-document forensic screening endpoint.
+    Runs OCR, ELA, and AI detection concurrently with multi-threading.
     """
     try:
         doc_bytes = await document.read()
         if not doc_bytes:
             raise HTTPException(status_code=400, detail="Uploaded document file is empty.")
 
-        # 1. OCR & MRZ Parsing
-        ocr_res = process_document_ocr(
-            image_bytes=doc_bytes,
-            explicit_doc_type=doc_type,
-            include_redacted_image=True
-        )
+        # Run OCR, ELA, and GenAI in parallel
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            ocr_f = pool.submit(process_document_ocr, doc_bytes, doc_type, True)
+            ela_f = pool.submit(analyze_ela_tampering, doc_bytes)
+            ai_f = pool.submit(run_ai_generated_detection, doc_bytes)
 
-        # 2. Error Level Analysis (ELA)
-        ela_res = analyze_ela_tampering(doc_bytes)
+            ocr_res = ocr_f.result()
+            ela_res = ela_f.result()
+            ai_res = ai_f.result()
 
-        # 3. GenAI Artifact Detection
-        ai_res = run_ai_generated_detection(doc_bytes)
-
-        # 4. Facial Biometrics & Selfie GenAI Detection (if selfie provided)
+        # Facial Biometrics & Selfie GenAI Detection (if selfie provided)
         face_res = None
         if selfie:
             selfie_bytes = await selfie.read()
             if selfie_bytes:
-                face_res = run_facial_biometric_verification(doc_bytes, selfie_bytes)
-                selfie_ai = run_ai_generated_detection(selfie_bytes)
-                if selfie_ai.get("ai_generated_probability", 0.0) > ai_res.get("ai_generated_probability", 0.0):
-                    ai_res = selfie_ai
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    face_f = pool.submit(run_facial_biometric_verification, doc_bytes, selfie_bytes)
+                    selfie_ai_f = pool.submit(run_ai_generated_detection, selfie_bytes)
+                    face_res = face_f.result()
+                    selfie_ai = selfie_ai_f.result()
+                    if selfie_ai.get("ai_generated_probability", 0.0) > ai_res.get("ai_generated_probability", 0.0):
+                        ai_res = selfie_ai
 
-        # 5. Build Relational Consistency Graph (single document baseline)
+        # Build Relational Consistency Graph (single document baseline)
         graph_res = build_and_evaluate_cross_document_graph(
             doc_results={"primary_doc": ocr_res},
             face_verification_result=face_res
         )
 
-        # 6. Composite Risk Score Evaluation
+        # Composite Risk Score Evaluation
         risk_res = evaluate_composite_risk(
             ocr_result=ocr_res,
             ela_result=ela_res,
@@ -167,8 +171,20 @@ async def screen_single_document(
         )
 
 
-@app.post("/api/v1/screen-batch", tags=["Screening"])
-async def screen_batch_documents(
+def _process_doc_bundle(doc_key: str, doc_bytes: bytes):
+    """Processes OCR, ELA, and AI detection concurrently for a single document."""
+    ocr_res = process_document_ocr(
+        image_bytes=doc_bytes,
+        explicit_doc_type=doc_key if doc_key in ["passport", "visa", "aadhaar"] else None,
+        include_redacted_image=True
+    )
+    ela_res = analyze_ela_tampering(doc_bytes)
+    ai_res = run_ai_generated_detection(doc_bytes)
+    return doc_key, ocr_res, ela_res, ai_res
+
+
+@app.post("/api/v1/screen-batch", tags=["Document Screening"])
+async def screen_batch_documents_endpoint(
     passport: Optional[UploadFile] = File(None),
     visa: Optional[UploadFile] = File(None),
     aadhaar: Optional[UploadFile] = File(None),
@@ -176,62 +192,65 @@ async def screen_batch_documents(
 ):
     """
     Multi-document batch verification endpoint.
-    Processes Passport, Visa, Aadhaar, and Selfie concurrently.
+    Processes Passport, Visa, Aadhaar, and Selfie concurrently in parallel threads.
     Evaluates cross-document relational consistency graph and overall composite risk score.
     """
     try:
-        doc_results: Dict[str, Dict[str, Any]] = {}
-        ela_results: Dict[str, Dict[str, Any]] = {}
-        ai_results: Dict[str, Dict[str, Any]] = {}
-
+        doc_tasks = []
         primary_doc_bytes: Optional[bytes] = None
 
-        # 1. Process Passport
         if passport:
             p_bytes = await passport.read()
             if p_bytes:
                 primary_doc_bytes = primary_doc_bytes or p_bytes
-                doc_results["passport"] = process_document_ocr(p_bytes, explicit_doc_type="passport")
-                ela_results["passport"] = analyze_ela_tampering(p_bytes)
-                ai_results["passport"] = run_ai_generated_detection(p_bytes)
+                doc_tasks.append(("passport", p_bytes))
 
-        # 2. Process Visa
         if visa:
             v_bytes = await visa.read()
             if v_bytes:
                 primary_doc_bytes = primary_doc_bytes or v_bytes
-                doc_results["visa"] = process_document_ocr(v_bytes, explicit_doc_type="visa")
-                ela_results["visa"] = analyze_ela_tampering(v_bytes)
-                ai_results["visa"] = run_ai_generated_detection(v_bytes)
+                doc_tasks.append(("visa", v_bytes))
 
-        # 3. Process Aadhaar
         if aadhaar:
             a_bytes = await aadhaar.read()
             if a_bytes:
                 primary_doc_bytes = primary_doc_bytes or a_bytes
-                doc_results["aadhaar"] = process_document_ocr(a_bytes, explicit_doc_type="aadhaar")
-                ela_results["aadhaar"] = analyze_ela_tampering(a_bytes)
-                ai_results["aadhaar"] = run_ai_generated_detection(a_bytes)
+                doc_tasks.append(("aadhaar", a_bytes))
 
-        if not doc_results:
+        if not doc_tasks:
             raise HTTPException(status_code=400, detail="At least one document (Passport, Visa, or Aadhaar) must be uploaded.")
 
-        # 4. Process Facial Biometrics & Selfie GenAI Detection
+        doc_results: Dict[str, Dict[str, Any]] = {}
+        ela_results: Dict[str, Dict[str, Any]] = {}
+        ai_results: Dict[str, Dict[str, Any]] = {}
+
+        # Parallelize document bundle processing across threads
+        with ThreadPoolExecutor(max_workers=len(doc_tasks)) as pool:
+            futures = [pool.submit(_process_doc_bundle, k, b) for k, b in doc_tasks]
+            for f in futures:
+                k, ocr, ela, ai = f.result()
+                doc_results[k] = ocr
+                ela_results[k] = ela
+                ai_results[k] = ai
+
+        # Facial Biometrics & Selfie GenAI Detection
         face_res = None
         if selfie and primary_doc_bytes:
             s_bytes = await selfie.read()
             if s_bytes:
-                face_res = run_facial_biometric_verification(primary_doc_bytes, s_bytes)
-                ai_results["selfie"] = run_ai_generated_detection(s_bytes)
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    face_f = pool.submit(run_facial_biometric_verification, primary_doc_bytes, s_bytes)
+                    selfie_ai_f = pool.submit(run_ai_generated_detection, s_bytes)
+                    face_res = face_f.result()
+                    ai_results["selfie"] = selfie_ai_f.result()
 
-        # 5. Build Cross-Document Relational Graph
+        # Build Cross-Document Relational Graph
         graph_res = build_and_evaluate_cross_document_graph(
             doc_results=doc_results,
             face_verification_result=face_res
         )
 
-        # 6. Aggregate Composite Risk Score across all uploaded documents
-        # Select representative primary doc result for risk evaluation
+        # Aggregate Composite Risk Score across all uploaded documents
         primary_key = "passport" if "passport" in doc_results else ("visa" if "visa" in doc_results else "aadhaar")
         primary_ocr = doc_results[primary_key]
         primary_ela = ela_results.get(primary_key)
@@ -347,6 +366,20 @@ def purge_expired_records_endpoint(retention_hours: int = 24, force_all: bool = 
 def get_dpdp_status_endpoint():
     """Returns live DPDP Act compliance summary and minimization percentage."""
     return get_dpdp_compliance_summary()
+
+
+@app.post("/api/v1/export-pdf", tags=["Reports"])
+async def export_pdf_endpoint(payload: Dict[str, Any]):
+    """Generates and streams a high-resolution forensic PDF audit report."""
+    try:
+        pdf_bytes = generate_forensic_pdf(validation_data=payload)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=forensic_audit_report.pdf"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF Generation Failed: {str(e)}")
 
 
 if __name__ == "__main__":

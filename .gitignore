@@ -27,3 +27,8 @@ temp/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Frontend Dependencies & Build Output
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/

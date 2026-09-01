@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-primary: #FDF4D2;
+    --bg-gradient: linear-gradient(135deg, #FDF4D2 0%, #FAF0CB 40%, #F5E4B0 100%);
+    --card-bg: rgba(255, 253, 247, 0.75);
+    --card-border: rgba(226, 210, 160, 0.65);
+    --card-shadow: 0 8px 32px 0 rgba(160, 130, 70, 0.08);
+  }
+
+  body {
+    background: #FDF4D2;
+    background-image: 
+      radial-gradient(circle at 15% 15%, rgba(245, 158, 11, 0.08) 0%, transparent 45%),
+      radial-gradient(circle at 85% 20%, rgba(99, 102, 241, 0.07) 0%, transparent 40%),
+      radial-gradient(circle at 50% 85%, rgba(16, 185, 129, 0.06) 0%, transparent 50%),
+      linear-gradient(135deg, #FDF4D2 0%, #FAF0CB 50%, #F4E2AA 100%);
+    color: #1E293B;
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    background-attachment: fixed;
+  }
+}
+
+/* Custom Glassmorphic Utilities */
+.glass-panel {
+  background: rgba(255, 253, 247, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 210, 160, 0.65);
+  box-shadow: 0 8px 30px -4px rgba(160, 130, 70, 0.09), 0 2px 8px -2px rgba(160, 130, 70, 0.04);
+}
+
+.glass-panel-sub {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(230, 215, 170, 0.55);
+}
+
+.glass-panel-dark {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.25);
+}
+
+.glass-btn {
+  background: rgba(255, 253, 247, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(220, 200, 150, 0.7);
+  box-shadow: 0 2px 6px rgba(160, 130, 70, 0.08);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(200, 170, 100, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(160, 130, 70, 0.15);
+}
+
+.glass-btn-primary {
+  background: linear-gradient(135deg, #F59E0B 0%, #EA580C 50%, #4F46E5 100%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 20px -2px rgba(234, 88, 12, 0.35);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-btn-primary:hover {
+  background: linear-gradient(135deg, #FBBF24 0%, #F97316 50%, #6366F1 100%);
+  box-shadow: 0 6px 24px -2px rgba(234, 88, 12, 0.45);
+  transform: translateY(-1px);
+}
+
+/* Document Scanner Beam Animation */
+@keyframes scanVertical {
+  0% {
+    top: 0%;
+    opacity: 0.8;
+  }
+  50% {
+    top: 96%;
+    opacity: 1;
+  }
+  100% {
+    top: 0%;
+    opacity: 0.8;
+  }
+}
+
+@keyframes scanGlow {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.animate-scan-beam {
+  animation: scanVertical 2.2s ease-in-out infinite;
+}
+
+.animate-scan-glow {
+  animation: scanGlow 1.8s ease-in-out infinite;
+}
+
+/* Glow Shadows */
+.shadow-glow-amber {
+  box-shadow: 0 0 20px -3px rgba(245, 158, 11, 0.35);
+}
+
+.shadow-glow-cyan {
+  box-shadow: 0 0 20px -3px rgba(6, 182, 212, 0.35);
+}
+
+.shadow-glow-green {
+  box-shadow: 0 0 20px -3px rgba(16, 185, 129, 0.35);
+}
+
+.shadow-glow-red {
+  box-shadow: 0 0 20px -3px rgba(239, 68, 68, 0.35);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(253, 244, 210, 0.5);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(200, 180, 130, 0.6);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(160, 140, 90, 0.8);
+}

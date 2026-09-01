@@ -7,7 +7,7 @@ def verify_face(doc_image_path: str, selfie_image_path: str) -> dict:
             img1_path=doc_image_path,
             img2_path=selfie_image_path,
             model_name="Facenet",
-            detector_backend="retinaface",
+            detector_backend="opencv",
             enforce_detection=False
         )
         return {

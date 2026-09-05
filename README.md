@@ -3,6 +3,9 @@
 > **Multi-Layer Forensic & Biometric Screening System**
 > Built for **Prelims SIH 2026 – JECRC HackQuest 9.0** (5th–6th September 2026) | JECRC Campus, Jaipur.
 
+![Python](https://img.shields.io/badge/python-3.10+-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-active-brightgreen)
 ---
 
 ## 👥 Team Async Anomaly (SIH 2026 Prelims)
@@ -24,13 +27,25 @@
 
 - **Module owned:** Compliance & audit endpoints (DPDP compliance, forensic report export, audit-log hash-chain validation)
 - **What I built:** [briefly describe what these endpoints do and how you implemented them]
+
 - **Problems solved:** [e.g. designed the cryptographic tombstone system for expired PII, or the hash-chain audit trail]
 
 ---
 
+## 📸 Screenshots
+
+| Compliance Dashboard | API Documentation |
+|---|---|
+| ![Dashboard](screenshots/dashboard.png) | ![API Docs](screenshots/api-docs.png) |
+
+---
+
+```bash
 python -m uvicorn orchestration_platform.server.main:app --port 8000 --reload
 cd frontend
 npm run dev
+```
+
 # AI-Powered Border Checkpoint Document Fraud Screening & Identity Verification Platform
 
 Developed for **Smart India Hackathon (SIH)**.
@@ -114,57 +129,56 @@ graph TD
 
 ## 📁 Repository Structure
 
-```
 AI-document-screening/
 │
-├── core/                               # Module 1: Forensic Validation & Checksum Engines
-│   ├── mrz_utils.py                   # ICAO 9303 Modulo-10 cyclic check digit engine
-│   ├── td3_parser.py                  # Passport TD3 parser (2x44) & composite validation
-│   ├── td2_parser.py                  # Visa TD2 parser (2x36) & composite validation
-│   ├── aadhaar_parser.py              # Aadhaar QR/OCR parser, Verhoeff D_5 engine & UID masking
-│   ├── cross_validator.py             # VIZ-to-MRZ fuzzy cross-zone anti-tampering engine
-│   ├── field_validator.py             # Expiry, DOB sanity, century resolution, ISO-3166 codes
-│   └── blacklist_check.py             # Interpol SLTD & sanctions mock database
+├── core/ # Module 1: Forensic Validation & Checksum Engines
+│ ├── mrz_utils.py # ICAO 9303 Modulo-10 cyclic check digit engine
+│ ├── td3_parser.py # Passport TD3 parser (2x44) & composite validation
+│ ├── td2_parser.py # Visa TD2 parser (2x36) & composite validation
+│ ├── aadhaar_parser.py # Aadhaar QR/OCR parser, Verhoeff D_5 engine & UID masking
+│ ├── cross_validator.py # VIZ-to-MRZ fuzzy cross-zone anti-tampering engine
+│ ├── field_validator.py # Expiry, DOB sanity, century resolution, ISO-3166 codes
+│ └── blacklist_check.py # Interpol SLTD & sanctions mock database
 │
-├── vision/                             # Module 1: Computer Vision & Redaction
-│   ├── ocr_engine.py                  # Multi-scale ROI cropping, Black-Hat filtering & OCR
-│   └── redaction_engine.py            # OpenCV bounding-box UIDAI redactor & Base64 encoder
+├── vision/ # Module 1: Computer Vision & Redaction
+│ ├── ocr_engine.py # Multi-scale ROI cropping, Black-Hat filtering & OCR
+│ └── redaction_engine.py # OpenCV bounding-box UIDAI redactor & Base64 encoder
 │
-├── ai_vision/                          # Module 3: AI Detection, Biometrics & Liveness (Person C)
-│   ├── ai_detector.py                 # ViT transformer + Laplacian noise uniformity ensemble
-│   ├── face_verify.py                 # DeepFace (Facenet / RetinaFace) biometric verification
-│   ├── liveness_detector.py           # MediaPipe EAR blink engine, 10s PAD timer & HUD overlay
-│   ├── main.py                        # FastAPI microservice for AI Vision & Biometrics
-│   ├── models/                        # Cached MediaPipe FaceLandmarker model assets
-│   └── requirements.txt               # AI Vision dependencies
+├── ai_vision/ # Module 3: AI Detection, Biometrics & Liveness (Person C)
+│ ├── ai_detector.py # ViT transformer + Laplacian noise uniformity ensemble
+│ ├── face_verify.py # DeepFace (Facenet / RetinaFace) biometric verification
+│ ├── liveness_detector.py # MediaPipe EAR blink engine, 10s PAD timer & HUD overlay
+│ ├── main.py # FastAPI microservice for AI Vision & Biometrics
+│ ├── models/ # Cached MediaPipe FaceLandmarker model assets
+│ └── requirements.txt # AI Vision dependencies
 │
-├── orchestration_platform/             # Module 4: Dashboard, Graph & Multi-Layer Engine
-│   ├── app.py                         # Interactive Streamlit screening dashboard
-│   ├── engine/
-│   │   ├── composite_risk_engine.py   # Multi-layer weighted risk scoring engine (0-100)
-│   │   └── cross_doc_graph.py         # Relational consistency identity graph
-│   └── wrappers/
-│       ├── ai_vision_adapter.py       # Wrapper for Person C AI vision & in-screen liveness
-│       ├── ela_adapter.py             # Wrapper for Module 2 Error Level Analysis
-│       └── ocr_adapter.py             # Wrapper for Module 1 OCR & checksum parsing
+├── orchestration_platform/ # Module 4: Dashboard, Graph & Multi-Layer Engine
+│ ├── app.py # Interactive Streamlit screening dashboard
+│ ├── engine/
+│ │ ├── composite_risk_engine.py # Multi-layer weighted risk scoring engine (0-100)
+│ │ └── cross_doc_graph.py # Relational consistency identity graph
+│ └── wrappers/
+│ ├── ai_vision_adapter.py # Wrapper for Person C AI vision & in-screen liveness
+│ ├── ela_adapter.py # Wrapper for Module 2 Error Level Analysis
+│ └── ocr_adapter.py # Wrapper for Module 1 OCR & checksum parsing
 │
-├── governance/                         # Module 1: Audit Logging & DPDP Compliance
-│   ├── audit_logger.py                # SQLite append-only audit trail & SHA-256 hash-chain
-│   └── retention_engine.py            # DPDP Act 2023 data minimization & tombstoning
+├── governance/ # Module 1: Audit Logging & DPDP Compliance
+│ ├── audit_logger.py # SQLite append-only audit trail & SHA-256 hash-chain
+│ └── retention_engine.py # DPDP Act 2023 data minimization & tombstoning
 │
-├── reports/                            # Evidentiary Documentation
-│   └── forensic_generator.py          # ReportLab single-page PDF generator with SHA-256 seal
+├── reports/ # Evidentiary Documentation
+│ └── forensic_generator.py # ReportLab single-page PDF generator with SHA-256 seal
 │
-├── api/                                # API Data Contracts
-│   └── schemas.py                     # Pydantic v2 validation models
+├── api/ # API Data Contracts
+│ └── schemas.py # Pydantic v2 validation models
 │
-├── main.py                             # Root FastAPI microservice & 9-stage CLI demonstration
-├── run_dashboard.py                    # Streamlit Dashboard launcher script
-├── test_suite.py                       # 33 automated regression tests (100% pass rate)
-├── test_liveness.py                    # 5 automated tests for EAR math & blink state machine
-├── requirements.txt                    # Root platform dependencies
+├── main.py # Root FastAPI microservice & 9-stage CLI demonstration
+├── run_dashboard.py # Streamlit Dashboard launcher script
+├── test_suite.py # 33 automated regression tests (100% pass rate)
+├── test_liveness.py # 5 automated tests for EAR math & blink state machine
+├── requirements.txt # Root platform dependencies
 └── README.md
-```
+
 
 ---
 

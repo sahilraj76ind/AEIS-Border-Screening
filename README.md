@@ -1,3 +1,33 @@
+# AEIS — Border Screening System
+
+> **Multi-Layer Forensic & Biometric Screening System**
+> Built for **Prelims SIH 2026 – JECRC HackQuest 9.0** (5th–6th September 2026) | JECRC Campus, Jaipur.
+
+---
+
+## 👥 Team Async Anomaly (SIH 2026 Prelims)
+
+| Name | Role / Specialization | Contact |
+|---|---|---|
+| **Anshul Agarwal** | Core System Architecture & Frontend Engineering | `anshulagarwal3034@gmail.com` |
+| **Akshay Singh** | Backend Pipeline & Services Integration | `akshay7708209@gmail.com` |
+| **Akshat Kumar Ojha** | Identity Verification & Core Forensic Modules | `akshatojha414@gmail.com` |
+| **Sahil Raj** | Data Engineering & Infrastructure | `sahilraj.cse28@jecrc.ac.in` |
+| **Mukti Jain** | Forensic Research & Compliance Analysis | `mukti.z.zen@gmail.com` |
+| **Shruti Shukla** | Threat Research & Solution Design | `shrutitt2025@gmail.com` |
+
+> This repository is my personal copy of our team's SIH prototype, kept to showcase the modules I built. Full team credit above — original repo linked at the bottom.
+
+---
+
+## 🙋 My Contribution
+
+- **Module owned:** Compliance & audit endpoints (DPDP compliance, forensic report export, audit-log hash-chain validation)
+- **What I built:** [briefly describe what these endpoints do and how you implemented them]
+- **Problems solved:** [e.g. designed the cryptographic tombstone system for expired PII, or the hash-chain audit trail]
+
+---
+
 python -m uvicorn orchestration_platform.server.main:app --port 8000 --reload
 cd frontend
 npm run dev
@@ -228,3 +258,7 @@ Interactive Swagger API documentation: `http://localhost:8000/docs`.
 - **UIDAI Circular Comp/01/2018 & RBI Master Directions**: Mandatory masking of the first 8 Aadhaar digits.
 - **Digital Personal Data Protection (DPDP) Act 2023 Section 8(7)**: Mandatory data minimization and storage limitation for clean travelers.
 - **Digital Personal Data Protection (DPDP) Act 2023 Section 17(1)(c)**: Exemption for prevention and detection of offences (evidentiary holds).
+
+## 🔗 Original Team Repository
+
+[AkshaySingh198/AI-document-screening](https://github.com/AkshaySingh198/AI-document-screening)

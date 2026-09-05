@@ -30,16 +30,6 @@
 
 - **Problems solved:** [e.g. designed the cryptographic tombstone system for expired PII, or the hash-chain audit trail]
 
----
-
-## 📸 Screenshots
-
-| Compliance Dashboard | API Documentation |
-|---|---|
-| ![Dashboard](screenshots/dashboard.png) | ![API Docs](screenshots/api-docs.png) |
-
----
-
 ```bash
 python -m uvicorn orchestration_platform.server.main:app --port 8000 --reload
 cd frontend

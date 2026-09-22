@@ -11,8 +11,7 @@ import {
   DPDPComplianceStatus
 } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
+const API_BASE = 'https://aeis-border-screening.onrender.com';
 const api = axios.create({
   baseURL: API_BASE,
   timeout: 300000,

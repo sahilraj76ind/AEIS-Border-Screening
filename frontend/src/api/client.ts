@@ -11,7 +11,8 @@ import {
   DPDPComplianceStatus
 } from '../types';
 
-const API_BASE = 'https://aeis-border-screening.onrender.com';
+const API_BASE = 'http://localhost:8000';
+
 const api = axios.create({
   baseURL: API_BASE,
   timeout: 300000,
